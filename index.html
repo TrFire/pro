@@ -3,14 +3,15 @@
 <head>
     <!-- 
     ============================================================================
-    VERSÃO FINAL - SEM SENHAS NO CÓDIGO (15/01/2026)
+    VERSÃO FINAL - NOTIFICAÇÕES PERSONALIZADAS (15/01/2026)
     ============================================================================
     FUNCIONALIDADES:
+    - Interface: Modais personalizados substituindo alert() e confirm() nativos
     - Login: Busca usuários EXCLUSIVAMENTE do banco de dados
-    - Segurança: Nenhuma credencial hardcoded no código fonte
-    - Histórico: Listas colapsáveis (acordeão) por tipo
+    - Segurança: Nenhuma credencial hardcoded
+    - Histórico: Listas colapsáveis
     - Cadastro de Usuários: Tela exclusiva para Admin
-    - Bloqueio de Scan Duplicado (Mesmo Mês)
+    - Bloqueio de Scan Duplicado
     - Rondas Preventivas e Relatórios PDF
     - Banco de Dados em Nuvem (Firebase)
     ============================================================================
@@ -74,8 +75,10 @@
         .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
         #reader { width: 100%; height: 100%; overflow: hidden; background: black; }
         #reader video { object-fit: cover; width: 100% !important; height: 100% !important; }
-        .animate-fade-in { animation: fadeIn 0.5s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        .animate-scale-in { animation: scaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
     </style>
     
     <script>
@@ -102,7 +105,7 @@
         const { jsPDF } = window.jspdf;
 
         // =========================================================================
-        // GESTÃO DE CONFIGURAÇÃO DO FIREBASE (FIXA NO CÓDIGO)
+        // GESTÃO DE CONFIGURAÇÃO DO FIREBASE
         // =========================================================================
         
         const hardcodedConfig = {
@@ -124,7 +127,6 @@
             console.log("Firebase conectado com sucesso!");
         } catch (error) {
             console.error("Erro na inicialização:", error);
-            alert("Erro de conexão com o banco de dados. Verifique o console.");
         }
 
         // =========================================================================
@@ -136,7 +138,7 @@
         const LOCATION_OPTIONS = ["ANJUN", "AZUL CARGO", "AREAS COMUNS", "EQ. RESERVA", "LATAM", "MELI", "POWER SOURCE", "TOTAL EXP."];
         const ROUND_LOCATIONS = ["CASA DE BOMBAS", "TANQUE DE DIESEL", "RESERVA DE INCÊNDIO", "GERADORES"];
         const ROUND_AREAS = ["G-100", "G-200", "G-300"];
-        const ADMIN_USER = "THAWILLYS ROCHA"; // Usuário com permissão de backup e exclusão definitiva
+        const ADMIN_USER = "THAWILLYS ROCHA"; 
 
         const generateUUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
             var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
@@ -159,31 +161,74 @@
             />
         );
 
+        // COMPONENTE DE NOTIFICAÇÃO (MODAL)
+        const NotificationModal = ({ isOpen, message, type, isConfirmation, onClose, onConfirm }) => {
+            if (!isOpen) return null;
+            
+            const colors = {
+                error: 'bg-red-500',
+                success: 'bg-green-500',
+                warning: 'bg-yellow-500',
+                info: 'bg-blue-500'
+            };
+            
+            const icon = {
+                error: 'fa-times',
+                success: 'fa-check',
+                warning: 'fa-exclamation',
+                info: 'fa-info'
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-6 animate-fade-in">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl w-full max-w-sm text-center shadow-2xl animate-scale-in relative border border-gray-100 dark:border-gray-700">
+                        <div className={`w-20 h-20 rounded-full ${colors[type] || colors.info} flex items-center justify-center mx-auto mb-5 shadow-lg`}>
+                            <i className={`fas ${icon[type] || icon.info} text-4xl text-white`}></i>
+                        </div>
+                        <h3 className="text-xl font-black text-gray-800 dark:text-white mb-2 uppercase">{isConfirmation ? 'Confirmação' : (type === 'error' ? 'Atenção' : 'Sucesso')}</h3>
+                        <p className="text-gray-600 dark:text-gray-300 mb-8 text-base font-medium leading-relaxed whitespace-pre-line">{message}</p>
+                        
+                        <div className="flex gap-3 justify-center">
+                            {isConfirmation && (
+                                <button onClick={onClose} className="flex-1 py-3.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold active:scale-95 transition-transform">Cancelar</button>
+                            )}
+                            <button 
+                                onClick={() => {
+                                    if (isConfirmation && onConfirm) onConfirm();
+                                    onClose();
+                                }} 
+                                className={`flex-1 py-3.5 rounded-xl text-white font-bold shadow-lg active:scale-95 transition-transform ${colors[type] || colors.info}`}
+                            >
+                                {isConfirmation ? 'Confirmar' : 'Entendido'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // TELA DE RESPONSÁVEL
-        const ResponsibleScreen = ({ onConfirm, usersList }) => {
+        const ResponsibleScreen = ({ onConfirm, usersList, showAlert }) => {
             const [selectedName, setSelectedName] = useState("");
             const [password, setPassword] = useState("");
 
-            const validateLogin = () => {
-                if (!selectedName || !password) return false;
+            const handleLoginAttempt = () => {
+                if (!selectedName || !password) return;
                 const user = usersList.find(u => u.name === selectedName);
-                if (user && user.pass === password) return true;
-                return false;
+                if (user && user.pass === password) {
+                    onConfirm(selectedName);
+                } else {
+                    showAlert("Senha incorreta. Tente novamente.", "error");
+                }
             };
-
-            const isLoginValid = validateLogin();
 
             return (
                 <div className="flex flex-col h-full bg-brand-red p-6 items-center justify-center animate-fade-in relative">
-                    
                     <div className="w-32 h-32 mb-2 bg-white rounded-full p-4 shadow-2xl flex items-center justify-center">
                          <LogoImage className="w-full h-full object-contain" />
                     </div>
-                    
                     <h1 className="text-white text-3xl font-extrabold tracking-tight mb-1 text-center">TR FIRE <span className="text-brand-orange">INSPEÇÕES</span></h1>
-                    
                     <p className="text-white/80 text-sm mb-4 font-medium">Sistema de Controle de Equipamentos</p>
-
                     <div className="flex items-center gap-2 mb-6 bg-black/20 px-3 py-1 rounded-full">
                         <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
                         <p className="text-white/90 text-xs font-bold">ONLINE</p>
@@ -221,15 +266,15 @@
                                     disabled={!selectedName}
                                 />
                                 <div className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
-                                    <i className={`fas ${isLoginValid ? 'fa-check text-green-500' : 'fa-lock'}`}></i>
+                                    <i className="fas fa-lock"></i>
                                 </div>
                             </div>
                         </div>
 
                         <button 
-                            onClick={() => isLoginValid && onConfirm(selectedName)} 
-                            disabled={!isLoginValid}
-                            className={`w-full py-4 rounded-xl text-xl font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${isLoginValid ? 'bg-brand-orange hover:bg-orange-600 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                            onClick={handleLoginAttempt} 
+                            disabled={!selectedName}
+                            className={`w-full py-4 rounded-xl text-xl font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${selectedName ? 'bg-brand-orange hover:bg-orange-600 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
                         >
                             INICIAR INSPEÇÃO <i className="fas fa-arrow-right"></i>
                         </button>
@@ -247,21 +292,25 @@
             );
         };
 
-        const UserRegisterScreen = ({ onNavigate, onSaveUser, usersList, onUpdateUser, onDeleteUser }) => {
+        const UserRegisterScreen = ({ onNavigate, onSaveUser, usersList, onUpdateUser, onDeleteUser, showAlert, showConfirm }) => {
             const [newUser, setNewUser] = useState({ name: '', pass: '' });
             const [saving, setSaving] = useState(false);
             const [showList, setShowList] = useState(false);
 
             const handleSave = async () => {
-                if (!newUser.name || !newUser.pass) return alert("Preencha nome e senha.");
+                if (!newUser.name || !newUser.pass) return showAlert("Preencha nome e senha.", "warning");
                 setSaving(true);
                 await onSaveUser({
                     name: newUser.name.toUpperCase(),
                     pass: newUser.pass
                 });
                 setSaving(false);
-                alert("Usuário cadastrado com sucesso!");
+                showAlert("Usuário cadastrado com sucesso!", "success");
                 setNewUser({ name: '', pass: '' });
+            };
+
+            const handleDeleteAttempt = (id) => {
+                showConfirm("Tem certeza que deseja excluir este usuário permanentemente?", () => onDeleteUser(id), "error");
             };
 
             return (
@@ -336,7 +385,7 @@
                                                 <i className="fas fa-key text-xs"></i>
                                             </button>
                                             <button 
-                                                onClick={() => onDeleteUser(u.id)} 
+                                                onClick={() => handleDeleteAttempt(u.id)} 
                                                 className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200"
                                                 title="Excluir Usuário"
                                             >
@@ -451,7 +500,7 @@
             )
         };
 
-        const ScannerScreen = ({ onNavigate, onScanSuccess, db, inspectionType }) => {
+        const ScannerScreen = ({ onNavigate, onScanSuccess, db, inspectionType, showAlert }) => {
             const scannerRef = useRef(null);
 
             useEffect(() => {
@@ -466,7 +515,6 @@
                         scanner.stop().then(() => {
                             scanner.clear();
                             
-                            // 1. Processa os dados
                             let data = { equipmentId: decodedText, equipmentName: decodedText };
                             try {
                                 const parsed = JSON.parse(decodedText);
@@ -476,32 +524,21 @@
                                 }
                             } catch(e) {}
 
-                            // 2. Validação de Duplicidade (Só para Extintores e Hidrantes)
                             if (inspectionType !== 'RONDA') {
-                                const currentMonth = new Date().toISOString().slice(0, 7); // Ex: 2026-01
-                                
+                                const currentMonth = new Date().toISOString().slice(0, 7); 
                                 const isDuplicate = db.some(item => {
                                     if (item.deleted) return false;
-                                    // Compara se o ID escaneado é igual ao do item
-                                    // Para strings simples ou JSON, compara o ID principal
                                     const scannedId = data.equipmentId.toString();
                                     const itemId = (item.equipmentId || '').toString();
-                                    
-                                    const isSameId = scannedId === itemId;
-                                    const isSameMonth = item.created_at.startsWith(currentMonth);
-                                    
-                                    return isSameId && isSameMonth;
+                                    return scannedId === itemId && item.created_at.startsWith(currentMonth);
                                 });
 
                                 if (isDuplicate) {
-                                    alert(`⚠️ EQUIPAMENTO JÁ VISTORIADO!\n\nEste código já foi registrado em ${new Date().toLocaleString('pt-BR', { month: 'long' })}.\nNova leitura permitida apenas no mês seguinte.`);
-                                    // Retorna ao menu ou reinicia (aqui voltamos para o menu para evitar loop)
+                                    showAlert(`⚠️ EQUIPAMENTO JÁ VISTORIADO!\n\nEste código já foi registrado em ${new Date().toLocaleString('pt-BR', { month: 'long' })}.\nNova leitura permitida apenas no mês seguinte.`, "warning");
                                     onNavigate('menu');
                                     return; 
                                 }
                             }
-
-                            // 3. Sucesso - prossegue
                             onScanSuccess(data);
 
                         }).catch(err => console.error(err));
@@ -513,7 +550,7 @@
                     if (scanner.isScanning) scanner.stop().then(() => scanner.clear()).catch(() => {});
                     else try { scanner.clear(); } catch(e) {}
                 };
-            }, [db, inspectionType]); // Dependências atualizadas
+            }, [db, inspectionType]);
 
             return (
                 <div className="flex flex-col h-full bg-black relative">
@@ -526,9 +563,6 @@
                     </div>
                     <div className="p-6 bg-white dark:bg-brand-dark rounded-t-3xl z-10 safe-area-bottom">
                         <button onClick={() => {
-                            // Para teste manual, também podemos aplicar a lógica se necessário, 
-                            // mas geralmente manual é para emergência. Vamos deixar passar ou validar?
-                            // O ideal é validar também.
                             const manualId = prompt("Digite o ID do equipamento:");
                             if(!manualId) return;
                             
@@ -542,7 +576,7 @@
                                     item.created_at.startsWith(currentMonth)
                                 );
                                 if (isDuplicate) {
-                                    alert("⚠️ EQUIPAMENTO JÁ VISTORIADO!\nRegistro duplicado no mês atual.");
+                                    showAlert("⚠️ EQUIPAMENTO JÁ VISTORIADO!\nRegistro duplicado no mês atual.", "warning");
                                     return;
                                 }
                             }
@@ -553,7 +587,7 @@
             );
         };
 
-        const RoundsFormScreen = ({ initialData, onNavigate, onSave, responsibleName, roundLocation }) => {
+        const RoundsFormScreen = ({ initialData, onNavigate, onSave, responsibleName, roundLocation, showAlert }) => {
             const [isSaving, setIsSaving] = useState(false);
             const [form, setForm] = useState({
                 type: 'RONDA',
@@ -604,11 +638,10 @@
 
             const save = async () => {
                 if (!form.equipmentName || !form.moduleLocation || !form.status) {
-                    return alert("Preencha todos os campos obrigatórios (*)");
+                    return showAlert("Preencha todos os campos obrigatórios (*)", "warning");
                 }
-                // *** VALIDAÇÃO DE FOTO OBRIGATÓRIA ***
                 if (!form.photo) {
-                    return alert("⚠️ O registro fotográfico é OBRIGATÓRIO antes de salvar.");
+                    return showAlert("⚠️ O registro fotográfico é OBRIGATÓRIO antes de salvar.", "warning");
                 }
 
                 setIsSaving(true);
@@ -718,7 +751,7 @@
             );
         };
 
-        const FormScreen = ({ initialData, onNavigate, onSave, responsibleName, inspectionType }) => {
+        const FormScreen = ({ initialData, onNavigate, onSave, responsibleName, inspectionType, showAlert }) => {
             const [isSaving, setIsSaving] = useState(false);
             const [form, setForm] = useState({
                 type: inspectionType,
@@ -746,7 +779,7 @@
                     if (form.h_complete === null || form.h_unobstructed === null || form.h_seal_broken === null || !form.nextHydro) required = true;
                 }
                 
-                if(required) return alert("Preencha todos os campos obrigatórios (*)");
+                if(required) return showAlert("Preencha todos os campos obrigatórios (*)", "warning");
                 
                 setIsSaving(true);
                 await onSave(form);
@@ -859,13 +892,13 @@
             );
         };
 
-        const ListScreen = ({ data, onNavigate, onToggleDelete, onDeletePermanently, onImportData, currentUser }) => {
+        const ListScreen = ({ data, onNavigate, onToggleDelete, onDeletePermanently, onImportData, currentUser, showAlert, showConfirm }) => {
             const [showFilter, setShowFilter] = useState(false);
             const [showPdfModal, setShowPdfModal] = useState(false); 
             const [showBackupModal, setShowBackupModal] = useState(false);
             const [showBin, setShowBin] = useState(false);
             const [filters, setFilters] = useState({ startDate: '', endDate: '', type: '', responsible: '', moduleLocation: '' });
-            const [expandedSections, setExpandedSections] = useState({}); // Novo estado para controle de expansão
+            const [expandedSections, setExpandedSections] = useState({}); 
             
             const fileInputRef = useRef(null);
             
@@ -916,7 +949,6 @@
                 return true;
             });
 
-            // Agrupa os dados por tipo para exibição
             const groupedData = useMemo(() => {
                 return {
                     EXTINTOR: activeData.filter(i => (i.type || 'EXTINTOR') === 'EXTINTOR'),
@@ -952,11 +984,10 @@
                         onImportData(json);
                         setShowBackupModal(false);
                     } catch(err) {
-                        alert("Erro ao ler arquivo JSON. Verifique o formato.");
+                        showAlert("Erro ao ler arquivo JSON. Verifique o formato.", "error");
                     }
                 };
                 reader.readAsText(file);
-                // Reset input
                 e.target.value = null;
             };
 
@@ -964,7 +995,7 @@
                 setShowPdfModal(false);
                 const reportData = activeData.filter(item => (item.type || (type === 'RONDA' ? '' : 'EXTINTOR')) === type);
 
-                if(reportData.length === 0) return alert(`Sem dados ATIVOS de ${type} para gerar relatório neste mês.`);
+                if(reportData.length === 0) return showAlert(`Sem dados ATIVOS de ${type} para gerar relatório neste mês.`, "warning");
 
                 const doc = new jsPDF({ orientation: "landscape" });
                 
@@ -1069,7 +1100,7 @@
                                 <div className="flex items-center gap-2">
                                     <button 
                                         onClick={() => {
-                                            if (item.responsible !== currentUser) return alert("🚫 Ação Negada: Permitido somente pelo usuário " + item.responsible + ".");
+                                            if (item.responsible !== currentUser) return showAlert("🚫 Ação Negada: Permitido somente pelo usuário " + item.responsible + ".", "error");
                                             onToggleDelete(item.id, false);
                                         }}
                                         className="bg-green-100 text-green-600 hover:bg-green-200 w-10 h-10 rounded-full flex items-center justify-center shadow-sm transition-all active:scale-95"
@@ -1078,11 +1109,10 @@
                                         <i className="fas fa-trash-restore"></i>
                                     </button>
                                     
-                                    {/* BOTÃO EXCLUIR DEFINITIVAMENTE (SÓ ADMIN) */}
                                     {isAdmin && (
                                         <button 
                                             onClick={() => {
-                                                if(confirm("⚠️ ATENÇÃO: Deseja excluir este registro PERMANENTEMENTE? Esta ação não pode ser desfeita.")) onDeletePermanently(item.id);
+                                                showConfirm("⚠️ ATENÇÃO: Deseja excluir este registro PERMANENTEMENTE? Esta ação não pode ser desfeita.", () => onDeletePermanently(item.id), "error");
                                             }}
                                             className="bg-red-100 text-red-600 hover:bg-red-200 w-10 h-10 rounded-full flex items-center justify-center shadow-sm transition-all active:scale-95"
                                             title="Eliminar Definitivamente"
@@ -1094,8 +1124,8 @@
                             ) : (
                                 <button 
                                     onClick={() => {
-                                        if (item.responsible !== currentUser) return alert("🚫 Ação Negada: Permitido somente pelo usuário " + item.responsible + ".");
-                                        if(confirm("Mover para lixeira?")) onToggleDelete(item.id, true);
+                                        if (item.responsible !== currentUser) return showAlert("🚫 Ação Negada: Permitido somente pelo usuário " + item.responsible + ".", "error");
+                                        showConfirm("Mover para lixeira?", () => onToggleDelete(item.id, true), "warning");
                                     }}
                                     className="bg-gray-100 text-red-500 hover:bg-red-50 w-10 h-10 rounded-full flex items-center justify-center shadow-sm transition-all active:scale-95"
                                     title="Excluir"
@@ -1128,7 +1158,6 @@
                                     <div className="w-px h-6 bg-gray-600 mx-1"></div>
                                     <button onClick={() => setShowPdfModal(true)} title="Gerar PDF"><i className="fas fa-file-pdf text-xl text-white"></i></button>
                                     
-                                    {/* BOTÃO DE BACKUP - SOMENTE ADMIN */}
                                     {isAdmin && (
                                         <>
                                             <div className="w-px h-6 bg-gray-600 mx-1"></div>
@@ -1145,7 +1174,6 @@
                         </div>
                     </div>
 
-                    {/* Modais omitidos para brevidade (mantêm o mesmo código) */}
                     {showPdfModal && (
                         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl w-full max-w-sm animate-fade-in text-center">
@@ -1306,6 +1334,19 @@
             const [users, setUsers] = useState([]); // Lista de usuários vinda do BD
             const [scanRes, setScanRes] = useState(null);
             
+            // Estado de Notificação
+            const [notification, setNotification] = useState({ isOpen: false, message: '', type: 'info', isConfirmation: false, onConfirm: null });
+
+            const showAlert = (message, type = 'info') => {
+                setNotification({ isOpen: true, message, type, isConfirmation: false, onConfirm: null });
+            };
+
+            const showConfirm = (message, onConfirmAction, type = 'warning') => {
+                setNotification({ isOpen: true, message, type, isConfirmation: true, onConfirm: onConfirmAction });
+            };
+
+            const closeNotification = () => setNotification({ ...notification, isOpen: false });
+            
             // EFEITO PARA SINCRONIZAR COM FIREBASE (INSPEÇÕES + USUÁRIOS)
             useEffect(() => {
                 if(!dbFirestore) return;
@@ -1350,7 +1391,7 @@
             // SALVAR NO FIREBASE (INSPEÇÃO)
             const handleSave = async (formData) => {
                 if(!dbFirestore) {
-                    alert("Erro: Banco de dados não conectado. Verifique a configuração.");
+                    showAlert("Erro: Banco de dados não conectado. Verifique a configuração.", "error");
                     return;
                 }
                 try {
@@ -1358,7 +1399,7 @@
                     setPage('list');
                 } catch (e) {
                     console.error("Erro ao salvar: ", e);
-                    alert("Erro ao salvar na nuvem. Verifique sua conexão. (Se a foto for muito grande, o Firestore pode rejeitar)");
+                    showAlert("Erro ao salvar na nuvem. Verifique sua conexão. (Se a foto for muito grande, o Firestore pode rejeitar)", "error");
                 }
             };
 
@@ -1369,7 +1410,7 @@
                     await addDoc(collection(dbFirestore, "users"), userData);
                 } catch(e) {
                     console.error("Erro ao salvar usuário", e);
-                    alert("Erro ao salvar usuário.");
+                    showAlert("Erro ao salvar usuário.", "error");
                 }
             };
 
@@ -1378,55 +1419,58 @@
                 if(!dbFirestore) return;
                 try {
                     await updateDoc(doc(dbFirestore, "users", id), { pass: newPass });
-                    alert("Senha atualizada com sucesso!");
+                    showAlert("Senha atualizada com sucesso!", "success");
                 } catch(e) {
                     console.error("Erro ao atualizar usuário", e);
-                    alert("Erro ao atualizar senha.");
+                    showAlert("Erro ao atualizar senha.", "error");
                 }
             };
 
             // EXCLUIR USUÁRIO
             const handleDeleteUser = async (id) => {
                 if(!dbFirestore) return;
-                if(!confirm("Tem certeza que deseja excluir este usuário?")) return;
                 try {
                     await deleteDoc(doc(dbFirestore, "users", id));
-                    alert("Usuário excluído com sucesso!");
+                    showAlert("Usuário excluído com sucesso!", "success");
                 } catch(e) {
                     console.error("Erro ao excluir usuário", e);
-                    alert("Erro ao excluir usuário.");
+                    showAlert("Erro ao excluir usuário.", "error");
                 }
             };
 
             // IMPORTAR DADOS (Restaurar Backup)
             const handleImportData = async (jsonData) => {
-                if(!dbFirestore) return alert("Erro de conexão com o banco de dados.");
-                if(!Array.isArray(jsonData)) return alert("Arquivo inválido. O formato deve ser uma lista JSON.");
+                if(!dbFirestore) return showAlert("Erro de conexão com o banco de dados.", "error");
+                if(!Array.isArray(jsonData)) return showAlert("Arquivo inválido. O formato deve ser uma lista JSON.", "error");
                 
-                if(!confirm(`⚠️ ATENÇÃO: Você está prestes a importar ${jsonData.length} registros.\n\nIsso pode sobrescrever dados existentes se os IDs coincidirem.\nDeseja continuar?`)) return;
+                showConfirm(
+                    `⚠️ ATENÇÃO: Você está prestes a importar ${jsonData.length} registros.\n\nIsso pode sobrescrever dados existentes se os IDs coincidirem.\nDeseja continuar?`,
+                    async () => {
+                        let successCount = 0;
+                        let errorCount = 0;
 
-                let successCount = 0;
-                let errorCount = 0;
-
-                // Loop simples para processar a importação
-                for (const item of jsonData) {
-                    try {
-                        if (item.id) {
-                            // Se tem ID, usa setDoc para restaurar exatamente aquele documento (atualiza ou cria)
-                            const { id, ...dataToSave } = item;
-                            const docRef = doc(dbFirestore, "inspections", id);
-                            await setDoc(docRef, dataToSave);
-                        } else {
-                            // Se não tem ID, cria um novo
-                            await addDoc(collection(dbFirestore, "inspections"), item);
+                        // Loop simples para processar a importação
+                        for (const item of jsonData) {
+                            try {
+                                if (item.id) {
+                                    // Se tem ID, usa setDoc para restaurar exatamente aquele documento (atualiza ou cria)
+                                    const { id, ...dataToSave } = item;
+                                    const docRef = doc(dbFirestore, "inspections", id);
+                                    await setDoc(docRef, dataToSave);
+                                } else {
+                                    // Se não tem ID, cria um novo
+                                    await addDoc(collection(dbFirestore, "inspections"), item);
+                                }
+                                successCount++;
+                            } catch (e) {
+                                console.error("Erro ao importar item:", item, e);
+                                errorCount++;
+                            }
                         }
-                        successCount++;
-                    } catch (e) {
-                        console.error("Erro ao importar item:", item, e);
-                        errorCount++;
-                    }
-                }
-                alert(`Importação concluída!\n✅ Sucesso: ${successCount}\n❌ Erros: ${errorCount}`);
+                        showAlert(`Importação concluída!\n✅ Sucesso: ${successCount}\n❌ Erros: ${errorCount}`, "success");
+                    },
+                    "warning"
+                );
             };
 
             // ATUALIZAR (DELETAR/RESTAURAR) NO FIREBASE
@@ -1437,7 +1481,7 @@
                     await updateDoc(docRef, { deleted: status });
                 } catch (e) {
                     console.error("Erro ao atualizar: ", e);
-                    alert("Erro ao atualizar registro.");
+                    showAlert("Erro ao atualizar registro.", "error");
                 }
             };
 
@@ -1448,7 +1492,7 @@
                     await deleteDoc(doc(dbFirestore, "inspections", id));
                 } catch (e) {
                     console.error("Erro ao excluir permanentemente: ", e);
-                    alert("Erro ao excluir do banco de dados.");
+                    showAlert("Erro ao excluir do banco de dados.", "error");
                 }
             };
 
@@ -1460,14 +1504,23 @@
 
             return (
                 <>
-                    {page === 'responsible' && <ResponsibleScreen onConfirm={handleLogin} usersList={users} />}
+                    <NotificationModal 
+                        isOpen={notification.isOpen} 
+                        message={notification.message} 
+                        type={notification.type} 
+                        isConfirmation={notification.isConfirmation}
+                        onClose={closeNotification}
+                        onConfirm={notification.onConfirm}
+                    />
+
+                    {page === 'responsible' && <ResponsibleScreen onConfirm={handleLogin} usersList={users} showAlert={showAlert} />}
                     {page === 'menu' && <MenuScreen onNavigate={setPage} responsibleName={responsible} onStartInspection={handleStartInspection} />}
                     {page === 'roundsLocation' && <RoundsLocationScreen onNavigate={setPage} onSelectLocation={handleRoundStart} />}
-                    {page === 'userRegister' && <UserRegisterScreen onNavigate={setPage} onSaveUser={handleSaveUser} usersList={users} onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} />}
-                    {page === 'scan' && <ScannerScreen onNavigate={(target) => setPage(target === 'menu' && inspectionType === 'RONDA' ? 'roundsLocation' : target)} onScanSuccess={(d)=>{setScanRes(d); setPage(inspectionType === 'RONDA' ? 'roundsForm' : 'form')}} db={db} inspectionType={inspectionType} />}
-                    {page === 'form' && <FormScreen initialData={scanRes} onNavigate={setPage} responsibleName={responsible} inspectionType={inspectionType} onSave={handleSave} />}
-                    {page === 'roundsForm' && <RoundsFormScreen initialData={scanRes} onNavigate={setPage} responsibleName={responsible} roundLocation={roundLocation} onSave={handleSave} />}
-                    {page === 'list' && <ListScreen data={db} onNavigate={setPage} onToggleDelete={handleToggleDelete} onDeletePermanently={handleDeletePermanently} onImportData={handleImportData} currentUser={responsible} />}
+                    {page === 'userRegister' && <UserRegisterScreen onNavigate={setPage} onSaveUser={handleSaveUser} usersList={users} onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} showAlert={showAlert} showConfirm={showConfirm} />}
+                    {page === 'scan' && <ScannerScreen onNavigate={(target) => setPage(target === 'menu' && inspectionType === 'RONDA' ? 'roundsLocation' : target)} onScanSuccess={(d)=>{setScanRes(d); setPage(inspectionType === 'RONDA' ? 'roundsForm' : 'form')}} db={db} inspectionType={inspectionType} showAlert={showAlert} />}
+                    {page === 'form' && <FormScreen initialData={scanRes} onNavigate={setPage} responsibleName={responsible} inspectionType={inspectionType} onSave={handleSave} showAlert={showAlert} />}
+                    {page === 'roundsForm' && <RoundsFormScreen initialData={scanRes} onNavigate={setPage} responsibleName={responsible} roundLocation={roundLocation} onSave={handleSave} showAlert={showAlert} />}
+                    {page === 'list' && <ListScreen data={db} onNavigate={setPage} onToggleDelete={handleToggleDelete} onDeletePermanently={handleDeletePermanently} onImportData={handleImportData} currentUser={responsible} showAlert={showAlert} showConfirm={showConfirm} />}
                 </>
             );
         };
