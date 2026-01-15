@@ -3,11 +3,13 @@
 <head>
     <!-- 
     ============================================================================
-    VERSÃO FINAL - HISTÓRICO EXPANSÍVEL (15/01/2026)
+    VERSÃO FINAL - SEM SENHAS NO CÓDIGO (15/01/2026)
     ============================================================================
     FUNCIONALIDADES:
+    - Login: Busca usuários EXCLUSIVAMENTE do banco de dados
+    - Segurança: Nenhuma credencial hardcoded no código fonte
     - Histórico: Listas colapsáveis (acordeão) por tipo
-    - Login Dinâmico e Cadastro de Usuários
+    - Cadastro de Usuários: Tela exclusiva para Admin
     - Bloqueio de Scan Duplicado (Mesmo Mês)
     - Rondas Preventivas e Relatórios PDF
     - Banco de Dados em Nuvem (Firebase)
@@ -1328,22 +1330,7 @@
                     const usersList = [];
                     snapshot.forEach(doc => usersList.push({ id: doc.id, ...doc.data() }));
                     
-                    if (usersList.length === 0) {
-                        // MIGRAÇÃO INICIAL AUTOMÁTICA
-                        console.log("Banco de usuários vazio. Criando usuários padrão...");
-                        const DEFAULT_USERS = [
-                            { name: "MARCO DUARTE", pass: "MD4587" },
-                            { name: "RICARDO GRILLO", pass: "RG6589" },
-                            { name: "RODRIGO UMBELINO", pass: "RU7863" },
-                            { name: "RUBENS RODRIGUES", pass: "RR4258" },
-                            { name: "THAWILLYS ROCHA", pass: "Admin1605" }
-                        ];
-                        for (const u of DEFAULT_USERS) {
-                            await addDoc(usersCollection, u);
-                        }
-                    } else {
-                        setUsers(usersList);
-                    }
+                    setUsers(usersList);
                 });
 
                 return () => {
