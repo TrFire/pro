@@ -3,14 +3,14 @@
 <head>
     <!-- 
     ============================================================================
-    VERSÃO FINAL - AUDITORIA AUTOMÁTICA DE RONDAS (15/01/2026)
+    VERSÃO FINAL - LOGIN VINCULADO À UNIDADE (15/01/2026)
     ============================================================================
     FUNCIONALIDADES:
-    - Auditoria Automática: Gera registros "NÃO REALIZADA" se o turno acabar sem inspeção.
-    - Proteção de Registros: Itens automáticos não podem ser excluídos.
-    - Turnos Definidos: Diurno (06:00-18:00) e Noturno (18:00-06:00).
-    - Login: Busca usuários EXCLUSIVAMENTE do banco de dados.
-    - Histórico: Listas colapsáveis e indicadores visuais de falha.
+    - Login: Filtra usuários pela unidade selecionada.
+    - Admin Global: "THAWILLYS ROCHA" acessa todas as unidades.
+    - Cadastro de Usuários: Exige seleção da unidade.
+    - Migração: Atribui "PARQUE LOGISTICO AERO I" a usuários legados.
+    - Histórico, Rondas e demais funções preservadas.
     - Banco de Dados em Nuvem (Firebase).
     ============================================================================
     -->
@@ -176,15 +176,29 @@
             );
         };
 
-        const ResponsibleScreen = ({ onConfirm, usersList, showAlert }) => {
+        const ResponsibleScreen = ({ onConfirm, usersList, unitsList, showAlert }) => {
             const [selectedName, setSelectedName] = useState("");
+            const [selectedUnit, setSelectedUnit] = useState("");
             const [password, setPassword] = useState("");
 
+            // Filtra os usuários com base na unidade selecionada
+            // ADMIN_USER sempre aparece, independente da unidade
+            const filteredUsers = useMemo(() => {
+                if (!selectedUnit) return [];
+                return usersList.filter(u => u.unit === selectedUnit || u.name === ADMIN_USER);
+            }, [selectedUnit, usersList]);
+
             const handleLoginAttempt = () => {
-                if (!selectedName || !password) return;
+                if (!selectedName || !password || !selectedUnit) return;
                 const user = usersList.find(u => u.name === selectedName);
+                
                 if (user && user.pass === password) {
-                    onConfirm(selectedName);
+                    // Verificação extra de segurança no login, embora a lista já esteja filtrada
+                    if (user.name === ADMIN_USER || user.unit === selectedUnit) {
+                        onConfirm(selectedName, selectedUnit);
+                    } else {
+                        showAlert("Usuário não pertence a esta unidade.", "error");
+                    }
                 } else {
                     showAlert("Senha incorreta. Tente novamente.", "error");
                 }
@@ -196,45 +210,114 @@
                     <h1 className="text-white text-3xl font-extrabold tracking-tight mb-1 text-center">TR FIRE <span className="text-brand-orange">INSPEÇÕES</span></h1>
                     <p className="text-white/80 text-sm mb-4 font-medium">Sistema de Controle de Equipamentos</p>
                     <div className="flex items-center gap-2 mb-6 bg-black/20 px-3 py-1 rounded-full"><div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div><p className="text-white/90 text-xs font-bold">ONLINE</p></div>
-                    <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-full max-w-sm space-y-6">
+                    
+                    <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-2xl w-full max-w-sm space-y-4">
+                        {/* SELEÇÃO DE UNIDADE */}
                         <div>
-                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Responsável pela Inspeção *</label>
+                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Unidade *</label>
                             <div className="relative">
-                                {usersList.length === 0 ? <div className="text-center py-4 text-gray-500"><i className="fas fa-spinner fa-spin"></i> Carregando...</div> : (
-                                    <select value={selectedName} onChange={(e) => { setSelectedName(e.target.value); setPassword(""); }} className="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-brand-orange outline-none dark:text-white appearance-none font-bold text-gray-700">
-                                        <option value="">Selecione...</option>
-                                        {usersList.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                {unitsList.length === 0 ? <div className="text-center py-4 text-gray-500 text-xs"><i className="fas fa-spinner fa-spin"></i> Carregando unidades...</div> : (
+                                    <select value={selectedUnit} onChange={(e) => { setSelectedUnit(e.target.value); setSelectedName(""); }} className="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-brand-orange outline-none dark:text-white appearance-none font-bold text-gray-700">
+                                        <option value="">Selecione a Unidade...</option>
+                                        {unitsList.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
                                     </select>
                                 )}
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-700 dark:text-gray-300"><i className="fas fa-building"></i></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Responsável *</label>
+                            <div className="relative">
+                                <select value={selectedName} onChange={(e) => { setSelectedName(e.target.value); setPassword(""); }} className="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-brand-orange outline-none dark:text-white appearance-none font-bold text-gray-700" disabled={!selectedUnit}>
+                                    <option value="">{selectedUnit ? "Selecione o Responsável..." : "Aguardando Unidade..."}</option>
+                                    {filteredUsers.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-700 dark:text-gray-300"><i className="fas fa-chevron-down"></i></div>
                             </div>
                         </div>
+
                         <div className={`transition-all duration-300 ${selectedName ? 'opacity-100 max-h-24' : 'opacity-50 max-h-24 pointer-events-none'}`}>
-                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Senha de Acesso *</label>
+                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Senha *</label>
                             <div className="relative">
                                 <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Digite sua senha..." className="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-brand-orange outline-none dark:text-white font-bold text-gray-700 placeholder-gray-400" disabled={!selectedName} />
                                 <div className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-400"><i className="fas fa-lock"></i></div>
                             </div>
                         </div>
-                        <button onClick={handleLoginAttempt} disabled={!selectedName} className={`w-full py-4 rounded-xl text-xl font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${selectedName ? 'bg-brand-orange hover:bg-orange-600 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>INICIAR INSPEÇÃO <i className="fas fa-arrow-right"></i></button>
+
+                        <button onClick={handleLoginAttempt} disabled={!selectedName || !password || !selectedUnit} className={`w-full py-4 rounded-xl text-xl font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${(selectedName && password && selectedUnit) ? 'bg-brand-orange hover:bg-orange-600 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>INICIAR INSPEÇÃO <i className="fas fa-arrow-right"></i></button>
                     </div>
                     <div className="absolute bottom-4 w-full text-center space-y-2"><div className="text-white/90 text-xs text-center mb-1 leading-relaxed font-medium"><p>Copyright © 2026 Fire Personality ME</p><p>Todos os direitos reservados</p><p>(Thawillys Rocha)</p></div><p className="text-white/40 text-xs">Versão Beta 1.5</p></div>
                 </div>
             );
         };
 
-        const UserRegisterScreen = ({ onNavigate, onSaveUser, usersList, onUpdateUser, onDeleteUser, showAlert, showConfirm }) => {
-            const [newUser, setNewUser] = useState({ name: '', pass: '' });
+        const UnitRegisterScreen = ({ onNavigate, onSaveUnit, unitsList, onUpdateUnit, onDeleteUnit, showAlert, showConfirm }) => {
+            const [newUnit, setNewUnit] = useState({ name: '', address: '' });
             const [saving, setSaving] = useState(false);
             const [showList, setShowList] = useState(false);
 
             const handleSave = async () => {
-                if (!newUser.name || !newUser.pass) return showAlert("Preencha nome e senha.", "warning");
+                if (!newUnit.name || !newUnit.address) return showAlert("Preencha nome e endereço.", "warning");
                 setSaving(true);
-                await onSaveUser({ name: newUser.name.toUpperCase(), pass: newUser.pass });
+                await onSaveUnit({
+                    name: newUnit.name.toUpperCase(),
+                    address: newUnit.address.toUpperCase()
+                });
+                setSaving(false);
+                showAlert("Unidade cadastrada com sucesso!", "success");
+                setNewUnit({ name: '', address: '' });
+            };
+
+            const handleDeleteAttempt = (id) => {
+                showConfirm("Tem certeza que deseja excluir esta unidade?", () => onDeleteUnit(id), "error");
+            };
+
+            return (
+                <div className="flex flex-col h-full bg-white dark:bg-brand-dark p-6 animate-fade-in relative overflow-y-auto">
+                    <div className="absolute top-4 left-4"><button onClick={() => onNavigate('menu')} className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-white shadow-sm"><i className="fas fa-arrow-left"></i></button></div>
+                    <div className="mt-16 text-center mb-8"><div className="inline-flex items-center justify-center w-16 h-16 bg-brand-orange rounded-full mb-4"><i className="fas fa-building text-2xl text-white"></i></div><h2 className="text-2xl font-black text-gray-800 dark:text-white uppercase">NOVA UNIDADE</h2><p className="text-gray-500 dark:text-gray-400 text-sm">Cadastrar local de trabalho</p></div>
+                    <div className="space-y-4">
+                        <div><label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Nome da Unidade</label><input value={newUnit.name} onChange={e => setNewUnit({...newUnit, name: e.target.value})} placeholder="EX: PARQUE LOGISTICO AERO I" className="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-brand-orange outline-none dark:text-white font-bold text-gray-700 uppercase" /></div>
+                        <div><label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Endereço</label><input value={newUnit.address} onChange={e => setNewUnit({...newUnit, address: e.target.value})} placeholder="Rua, Número, Bairro" type="text" className="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-brand-orange outline-none dark:text-white font-bold text-gray-700 uppercase" /></div>
+                        <button onClick={handleSave} disabled={saving} className="w-full py-4 bg-brand-orange text-white rounded-xl text-lg font-bold shadow-lg mt-6 active:scale-95 transition-transform">{saving ? 'SALVANDO...' : 'CADASTRAR'}</button>
+                    </div>
+                    <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+                        <button onClick={() => setShowList(!showList)} className="w-full flex justify-between items-center text-gray-600 dark:text-gray-300 font-bold bg-gray-100 dark:bg-gray-800 p-4 rounded-xl"><span><i className="fas fa-building mr-2"></i> Unidades Cadastradas ({unitsList.length})</span><i className={`fas fa-chevron-${showList ? 'up' : 'down'}`}></i></button>
+                        {showList && (
+                            <div className="mt-4 space-y-3">
+                                {unitsList.map(u => (
+                                    <div key={u.id} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 rounded-xl flex items-center justify-between shadow-sm">
+                                        <div className="flex flex-col"><span className="font-bold text-gray-800 dark:text-white text-sm">{u.name}</span><span className="text-xs text-gray-400">{u.address}</span></div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => { const newAddr = prompt(`Novo endereço para ${u.name}:`, u.address); if(newAddr && newAddr !== u.address) onUpdateUnit(u.id, { address: newAddr }); }} className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center hover:bg-blue-200"><i className="fas fa-pen text-xs"></i></button>
+                                            <button onClick={() => handleDeleteAttempt(u.id)} className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200"><i className="fas fa-trash text-xs"></i></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const UserRegisterScreen = ({ onNavigate, onSaveUser, usersList, unitsList, onUpdateUser, onDeleteUser, showAlert, showConfirm }) => {
+            const [newUser, setNewUser] = useState({ name: '', pass: '', unit: '' });
+            const [saving, setSaving] = useState(false);
+            const [showList, setShowList] = useState(false);
+
+            const handleSave = async () => {
+                if (!newUser.name || !newUser.pass || !newUser.unit) return showAlert("Preencha nome, senha e unidade.", "warning");
+                setSaving(true);
+                await onSaveUser({
+                    name: newUser.name.toUpperCase(),
+                    pass: newUser.pass,
+                    unit: newUser.unit
+                });
                 setSaving(false);
                 showAlert("Usuário cadastrado com sucesso!", "success");
-                setNewUser({ name: '', pass: '' });
+                setNewUser({ name: '', pass: '', unit: '' });
             };
 
             const handleDeleteAttempt = (id) => {
@@ -245,19 +328,39 @@
                 <div className="flex flex-col h-full bg-white dark:bg-brand-dark p-6 animate-fade-in relative overflow-y-auto">
                     <div className="absolute top-4 left-4"><button onClick={() => onNavigate('menu')} className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-white shadow-sm"><i className="fas fa-arrow-left"></i></button></div>
                     <div className="mt-16 text-center mb-8"><div className="inline-flex items-center justify-center w-16 h-16 bg-brand-orange rounded-full mb-4"><i className="fas fa-user-plus text-2xl text-white"></i></div><h2 className="text-2xl font-black text-gray-800 dark:text-white uppercase">NOVO USUÁRIO</h2><p className="text-gray-500 dark:text-gray-400 text-sm">Cadastrar inspetor</p></div>
+                    
                     <div className="space-y-4">
-                        <div><label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Nome Completo</label><input value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} placeholder="EX: JOÃO SILVA" className="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-brand-orange outline-none dark:text-white font-bold text-gray-700 uppercase" /></div>
-                        <div><label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Senha</label><input value={newUser.pass} onChange={e => setNewUser({...newUser, pass: e.target.value})} placeholder="Senha de acesso" type="text" className="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-brand-orange outline-none dark:text-white font-bold text-gray-700" /></div>
+                        {/* Seleção de Unidade no Cadastro */}
+                        <div>
+                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Unidade *</label>
+                            <div className="relative">
+                                <select value={newUser.unit} onChange={e => setNewUser({...newUser, unit: e.target.value})} className="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-brand-orange outline-none dark:text-white font-bold text-gray-700 appearance-none">
+                                    <option value="">Selecione a Unidade...</option>
+                                    {unitsList.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-700 dark:text-gray-300"><i className="fas fa-building"></i></div>
+                            </div>
+                        </div>
+
+                        <div><label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Nome Completo *</label><input value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} placeholder="EX: JOÃO SILVA" className="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-brand-orange outline-none dark:text-white font-bold text-gray-700 uppercase" /></div>
+                        <div><label className="text-sm font-bold text-gray-700 dark:text-gray-300 block mb-2">Senha *</label><input value={newUser.pass} onChange={e => setNewUser({...newUser, pass: e.target.value})} placeholder="Senha de acesso" type="text" className="w-full p-4 bg-gray-100 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 focus:border-brand-orange outline-none dark:text-white font-bold text-gray-700" /></div>
                         <button onClick={handleSave} disabled={saving} className="w-full py-4 bg-brand-orange text-white rounded-xl text-lg font-bold shadow-lg mt-6 active:scale-95 transition-transform">{saving ? 'SALVANDO...' : 'CADASTRAR'}</button>
                     </div>
+
                     <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
                         <button onClick={() => setShowList(!showList)} className="w-full flex justify-between items-center text-gray-600 dark:text-gray-300 font-bold bg-gray-100 dark:bg-gray-800 p-4 rounded-xl"><span><i className="fas fa-users mr-2"></i> Usuários Cadastrados ({usersList.length})</span><i className={`fas fa-chevron-${showList ? 'up' : 'down'}`}></i></button>
                         {showList && (
                             <div className="mt-4 space-y-3">
                                 {usersList.map(u => (
-                                    <div key={u.id} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 rounded-xl flex items-center justify-between shadow-sm">
-                                        <div className="flex flex-col"><span className="font-bold text-gray-800 dark:text-white text-sm">{u.name}</span><span className="text-xs text-gray-400">Senha: {u.pass}</span></div>
-                                        <div className="flex gap-2">
+                                    <div key={u.id} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 rounded-xl flex flex-col justify-between shadow-sm">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-gray-800 dark:text-white text-sm">{u.name}</span>
+                                                <span className="text-xs text-gray-400">Senha: {u.pass}</span>
+                                            </div>
+                                            <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">{u.unit || 'Sem Unidade'}</span>
+                                        </div>
+                                        <div className="flex gap-2 self-end">
                                             <button onClick={() => { const newPass = prompt(`Nova senha para ${u.name}:`, u.pass); if(newPass && newPass !== u.pass) onUpdateUser(u.id, newPass); }} className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center hover:bg-blue-200"><i className="fas fa-key text-xs"></i></button>
                                             <button onClick={() => handleDeleteAttempt(u.id)} className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200"><i className="fas fa-trash text-xs"></i></button>
                                         </div>
@@ -270,7 +373,7 @@
             );
         };
 
-        const MenuScreen = ({ onNavigate, responsibleName, onStartInspection }) => {
+        const MenuScreen = ({ onNavigate, responsibleName, currentUnit, onStartInspection }) => {
             const [time, setTime] = useState(new Date());
             const isAdmin = responsibleName === ADMIN_USER;
             useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
@@ -278,7 +381,13 @@
 
             return (
                 <div className="flex flex-col h-full bg-white dark:bg-brand-dark p-6 animate-fade-in relative">
-                    <div className="absolute top-0 left-0 w-full bg-gray-100 dark:bg-gray-800 p-2 px-6 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400"><span>Olá, <b>{responsibleName}</b></span><button onClick={handleLogout} className="text-brand-red font-bold">Sair</button></div>
+                    <div className="absolute top-0 left-0 w-full bg-gray-100 dark:bg-gray-800 p-2 px-6 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
+                        <div className="flex flex-col">
+                            <span>Olá, <b>{responsibleName}</b></span>
+                            <span className="text-[10px] text-gray-400"><i className="fas fa-building mr-1"></i> {currentUnit}</span>
+                        </div>
+                        <button onClick={handleLogout} className="text-brand-red font-bold">Sair</button>
+                    </div>
                     <div className="flex-1 flex flex-col items-center justify-center space-y-6 mt-6 overflow-y-auto">
                         <div className="w-32 h-32 shrink-0"><LogoImage className="w-full h-full object-contain filter drop-shadow-xl" /></div>
                         <div className="text-center"><h1 className="text-2xl font-extrabold tracking-tight">TR FIRE <span className="text-brand-orange">INSPEÇÕES</span></h1><p className="text-gray-500 mt-1 font-mono text-xs">{time.toLocaleDateString('pt-BR', {weekday: 'long', day:'numeric', month:'long'})}<br/>{time.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</p></div>
@@ -291,7 +400,10 @@
                             <button onClick={() => onStartInspection('HIDRANTE')} className="w-full py-4 bg-brand-orange active:bg-orange-800 text-white rounded-xl text-lg font-bold shadow-lg flex items-center justify-center gap-4 transition-transform active:scale-95"><i className="fas fa-faucet text-2xl"></i> HIDRANTES</button>
                             <button onClick={() => onNavigate('list')} className="w-full py-4 bg-gray-800 active:bg-gray-900 text-white rounded-xl text-lg font-bold shadow-lg flex items-center justify-center gap-4 transition-transform active:scale-95"><i className="fas fa-database text-xl"></i> HISTÓRICO</button>
                             {isAdmin && (
-                                <button onClick={() => onNavigate('userRegister')} className="w-full py-4 bg-gray-700 active:bg-gray-900 text-white rounded-xl text-lg font-bold shadow-lg flex items-center justify-center gap-4 transition-transform active:scale-95 relative overflow-hidden"><div className="absolute top-0 right-0 bg-white/20 px-2 py-0.5 text-[10px] rounded-bl">Admin</div><i className="fas fa-user-plus text-xl"></i> CADASTRAR USUÁRIO</button>
+                                <>
+                                    <button onClick={() => onNavigate('unitRegister')} className="w-full py-4 bg-gray-600 active:bg-gray-800 text-white rounded-xl text-lg font-bold shadow-lg flex items-center justify-center gap-4 transition-transform active:scale-95 relative overflow-hidden"><div className="absolute top-0 right-0 bg-white/20 px-2 py-0.5 text-[10px] rounded-bl">Admin</div><i className="fas fa-building text-xl"></i> CADASTRAR UNIDADE</button>
+                                    <button onClick={() => onNavigate('userRegister')} className="w-full py-4 bg-gray-700 active:bg-gray-900 text-white rounded-xl text-lg font-bold shadow-lg flex items-center justify-center gap-4 transition-transform active:scale-95 relative overflow-hidden"><div className="absolute top-0 right-0 bg-white/20 px-2 py-0.5 text-[10px] rounded-bl">Admin</div><i className="fas fa-user-plus text-xl"></i> CADASTRAR USUÁRIO</button>
+                                </>
                             )}
                         </div>
                     </div>
@@ -493,7 +605,7 @@
                     </div>
                     {showPdfModal && (<div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-800 p-6 rounded-2xl w-full max-w-sm animate-fade-in text-center"><h3 className="text-lg font-bold mb-2 dark:text-white">Gerar Relatório</h3><p className="text-sm font-bold text-brand-red mb-6 uppercase border-b pb-2">{formatMonthDisplay(viewMonth)}</p><div className="space-y-3"><button onClick={() => generateSpecificPDF('EXTINTOR')} className="w-full py-3 bg-brand-red text-white font-bold rounded-xl shadow-md active:scale-95">Relatório de EXTINTORES</button><button onClick={() => generateSpecificPDF('HIDRANTE')} className="w-full py-3 bg-brand-orange text-white font-bold rounded-xl shadow-md active:scale-95">Relatório de HIDRANTES</button><button onClick={() => generateSpecificPDF('RONDA')} className="w-full py-3 bg-brand-blue text-white font-bold rounded-xl shadow-md active:scale-95">Relatório de RONDAS</button><button onClick={() => setShowPdfModal(false)} className="w-full py-3 bg-gray-200 text-gray-700 font-bold rounded-xl mt-2">Cancelar</button></div></div></div>)}
                     {showBackupModal && isAdmin && (<div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"><div className="bg-white dark:bg-gray-800 p-6 rounded-2xl w-full max-w-sm animate-fade-in text-center"><h3 className="text-lg font-bold mb-4 dark:text-white flex items-center justify-center gap-2"><i className="fas fa-database text-blue-500"></i> Backup & Restauração</h3><p className="text-xs text-gray-500 mb-6">Ferramenta exclusiva para {ADMIN_USER}</p><div className="space-y-3"><button onClick={handleExport} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl shadow-md active:scale-95 flex items-center justify-center gap-2"><i className="fas fa-download"></i> EXPORTAR TUDO</button><div className="relative"><input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" /><button onClick={() => fileInputRef.current.click()} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl shadow-md active:scale-95 flex items-center justify-center gap-2"><i className="fas fa-upload"></i> IMPORTAR DADOS</button></div><button onClick={() => setShowBackupModal(false)} className="w-full py-3 bg-gray-200 text-gray-700 font-bold rounded-xl mt-4">Fechar</button></div></div></div>)}
-                    {showFilter && !showBin && (<div className="absolute top-16 right-4 z-50 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-64 animate-fade-in"><h3 className="font-bold mb-3 dark:text-white text-sm uppercase">Filtrar por</h3><div className="space-y-3"><div><label className="text-xs text-gray-500 block mb-1">De</label><input type="date" value={filters.startDate} onChange={e=>setFilters({...filters, startDate: e.target.value})} className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm dark:text-white" /></div><div><label className="text-xs text-gray-500 block mb-1">Até</label><input type="date" value={filters.endDate} onChange={e=>setFilters({...filters, endDate: e.target.value})} className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm dark:text-white" /></div><div><label className="text-xs text-gray-500 block mb-1">Tipo</label><select value={filters.type} onChange={e=>setFilters({...filters, type: e.target.value})} className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm dark:text-white"><option value="">Todos</option><option value="EXTINTOR">Extintor</option><option value="HIDRANTE">Hidrante</option><option value="RONDA">Ronda Prev.</option></select></div><div><label className="text-xs text-gray-500 block mb-1">Responsável</label><select value={filters.responsible} onChange={e=>setFilters({...filters, responsible: e.target.value})} className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm dark:text-white"><option value="">Todos</option>{responsibles.map(r => <option key={r} value={r}>{r}</option>)}</select></div><div><label className="text-xs text-gray-500 block mb-1">Módulo/Local</label><select value={filters.moduleLocation} onChange={e=>setFilters({...filters, moduleLocation: e.target.value})} className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm dark:text-white"><option value="">Todos</option>{LOCATION_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}</select></div><div className="flex gap-2 pt-2"><button onClick={() => setFilters({startDate:'', endDate:'', type:'', responsible:'', moduleLocation:''})} className="flex-1 py-1 text-xs font-bold text-gray-500 bg-gray-200 dark:bg-gray-700 rounded">Limpar</button><button onClick={() => setShowFilter(false)} className="flex-1 py-1 text-xs font-bold text-white bg-brand-red rounded">Fechar</button></div></div></div>)}
+                    {showFilter && !showBin && (<div className="absolute top-16 right-4 z-50 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-64 animate-fade-in"><h3 className="font-bold mb-3 dark:text-white text-sm uppercase">Filtrar por</h3><div className="space-y-3"><div><label className="text-xs text-gray-500 block mb-1">De</label><input type="date" value={filters.startDate} onChange={e=>setFilters({...filters, startDate: e.target.value})} className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm dark:text-white" /></div><div><label className="text-xs text-gray-500 block mb-1">Até</label><input type="date" value={filters.endDate} onChange={e=>setFilters({...filters, endDate: e.target.value})} className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm dark:text-white" /></div><div><label className="text-xs text-gray-500 block mb-1">Tipo</label><select value={filters.type} onChange={e=>setFilters({...filters, type: e.target.value})} className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm dark:text-white"><option value="">Todos</option><option value="EXTINTOR">Extintor</option><option value="HIDRANTE">Hidrante</option></select></div><div><label className="text-xs text-gray-500 block mb-1">Responsável</label><select value={filters.responsible} onChange={e=>setFilters({...filters, responsible: e.target.value})} className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm dark:text-white"><option value="">Todos</option>{responsibles.map(r => <option key={r} value={r}>{r}</option>)}</select></div><div><label className="text-xs text-gray-500 block mb-1">Módulo/Local</label><select value={filters.moduleLocation} onChange={e=>setFilters({...filters, moduleLocation: e.target.value})} className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm dark:text-white"><option value="">Todos</option>{LOCATION_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}</select></div><div className="flex gap-2 pt-2"><button onClick={() => setFilters({startDate:'', endDate:'', type:'', responsible:'', moduleLocation:''})} className="flex-1 py-1 text-xs font-bold text-gray-500 bg-gray-200 dark:bg-gray-700 rounded">Limpar</button><button onClick={() => setShowFilter(false)} className="flex-1 py-1 text-xs font-bold text-white bg-brand-red rounded">Fechar</button></div></div></div>)}
                     {!showBin && (<div className="bg-gray-100 dark:bg-gray-900 p-3 border-b border-gray-200 dark:border-gray-700 sticky top-[72px] z-10"><div className="relative"><select value={viewMonth} onChange={(e) => setViewMonth(e.target.value)} className="w-full p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white font-bold appearance-none cursor-pointer uppercase text-center">{availableMonths.map(month => <option key={month} value={month}>{formatMonthDisplay(month).toUpperCase()}</option>)}</select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500"><i className="fas fa-calendar-alt"></i></div></div></div>)}
                     <div className="flex-1 overflow-y-auto p-3 space-y-3">
                         {displayList.length === 0 && <div className="text-center text-gray-500 mt-10">{showBin ? "Lixeira vazia." : `Nenhum registro em ${formatMonthDisplay(viewMonth)}.`}</div>}
@@ -501,7 +613,7 @@
                             <>
                                 {groupedData.EXTINTOR.length > 0 && (<div className="mb-2"><button onClick={() => toggleSection('EXTINTOR')} className="w-full flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border-l-4 border-brand-red transition-all active:scale-[0.99]"><span className="font-bold text-brand-red flex items-center gap-2 uppercase tracking-wide"><i className="fas fa-fire-extinguisher"></i> EXTINTORES ({groupedData.EXTINTOR.length})</span><i className={`fas fa-chevron-${expandedSections['EXTINTOR'] ? 'up' : 'down'} text-gray-400`}></i></button>{expandedSections['EXTINTOR'] && (<div className="mt-2 space-y-3 pl-2 border-l-2 border-gray-200 dark:border-gray-700 ml-4 animate-fade-in">{groupedData.EXTINTOR.map(item => renderItem(item))}</div>)}</div>)}
                                 {groupedData.HIDRANTE.length > 0 && (<div className="mb-2"><button onClick={() => toggleSection('HIDRANTE')} className="w-full flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border-l-4 border-brand-orange transition-all active:scale-[0.99]"><span className="font-bold text-brand-orange flex items-center gap-2 uppercase tracking-wide"><i className="fas fa-faucet"></i> HIDRANTES ({groupedData.HIDRANTE.length})</span><i className={`fas fa-chevron-${expandedSections['HIDRANTE'] ? 'up' : 'down'} text-gray-400`}></i></button>{expandedSections['HIDRANTE'] && (<div className="mt-2 space-y-3 pl-2 border-l-2 border-gray-200 dark:border-gray-700 ml-4 animate-fade-in">{groupedData.HIDRANTE.map(item => renderItem(item))}</div>)}</div>)}
-                                {groupedData.RONDA.length > 0 && (<div className="mb-2"><button onClick={() => toggleSection('RONDA')} className="w-full flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border-l-4 border-brand-blue transition-all active:scale-[0.99]"><span className="font-bold text-brand-blue flex items-center gap-2 uppercase tracking-wide"><i className="fas fa-clipboard-check"></i> RONDAS DIÁRIAS ({groupedData.RONDA.length})</span><i className={`fas fa-chevron-${expandedSections['RONDA'] ? 'up' : 'down'} text-gray-400`}></i></button>{expandedSections['RONDA'] && (<div className="mt-2 space-y-3 pl-2 border-l-2 border-gray-200 dark:border-gray-700 ml-4 animate-fade-in">{groupedData.RONDA.map(item => renderItem(item))}</div>)}</div>)}
+                                {isAdmin && groupedData.RONDA.length > 0 && (<div className="mb-2"><button onClick={() => toggleSection('RONDA')} className="w-full flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border-l-4 border-brand-blue transition-all active:scale-[0.99]"><span className="font-bold text-brand-blue flex items-center gap-2 uppercase tracking-wide"><i className="fas fa-clipboard-check"></i> RONDAS DIÁRIAS ({groupedData.RONDA.length})</span><i className={`fas fa-chevron-${expandedSections['RONDA'] ? 'up' : 'down'} text-gray-400`}></i></button>{expandedSections['RONDA'] && (<div className="mt-2 space-y-3 pl-2 border-l-2 border-gray-200 dark:border-gray-700 ml-4 animate-fade-in">{groupedData.RONDA.map(item => renderItem(item))}</div>)}</div>)}
                             </>
                         )}
                     </div>
@@ -515,10 +627,12 @@
         const App = () => {
             const [page, setPage] = useState(localStorage.getItem('trfire_user') ? 'menu' : 'responsible');
             const [responsible, setResponsible] = useState(localStorage.getItem('trfire_user') || '');
+            const [currentUnit, setCurrentUnit] = useState(localStorage.getItem('trfire_unit') || '');
             const [inspectionType, setInspectionType] = useState('EXTINTOR');
             const [roundLocation, setRoundLocation] = useState('');
             const [db, setDb] = useState([]);
             const [users, setUsers] = useState([]);
+            const [units, setUnits] = useState([]);
             const [scanRes, setScanRes] = useState(null);
             const [notification, setNotification] = useState({ isOpen: false, message: '', type: 'info', isConfirmation: false, onConfirm: null });
 
@@ -533,15 +647,10 @@
                 const now = new Date();
                 const currentHour = now.getHours();
                 
-                // Determinar qual foi o ÚLTIMO turno COMPLETO
-                // Se agora é 19:00, o último turno completo foi o Diurno de Hoje (acabou as 18:00)
-                // Se agora é 07:00, o último turno completo foi o Noturno de Ontem (acabou as 06:00 de hoje)
-                
                 let targetShiftStart = null;
                 let targetShiftEnd = null;
-                let shiftNameID = ""; // Para compor o ID único e evitar duplicidade
+                let shiftNameID = ""; 
 
-                // Se passou das 18:00, verifica o turno da manhã de hoje
                 if (currentHour >= 18) {
                     const todayMorning = new Date(now); todayMorning.setHours(6, 0, 0, 0);
                     const todayAfternoon = new Date(now); todayAfternoon.setHours(17, 59, 59, 999);
@@ -549,17 +658,13 @@
                     targetShiftEnd = todayAfternoon;
                     shiftNameID = `DIURNO_${now.toISOString().slice(0,10)}`;
                 } 
-                // Se passou das 06:00 (e é antes das 18:00), verifica o turno da noite ANTERIOR
                 else if (currentHour >= 6) {
-                    // Turno noturno começou ontem as 18:00 e acabou hoje as 05:59
                     const yesterdayNight = new Date(now); yesterdayNight.setDate(yesterdayNight.getDate() - 1); yesterdayNight.setHours(18, 0, 0, 0);
                     const todayEarlyMorning = new Date(now); todayEarlyMorning.setHours(5, 59, 59, 999);
                     targetShiftStart = yesterdayNight;
                     targetShiftEnd = todayEarlyMorning;
-                    // ID Baseado na data de início do turno (ontem)
                     shiftNameID = `NOTURNO_${yesterdayNight.toISOString().slice(0,10)}`;
                 }
-                // Se é madrugada (00:00 - 05:59), o último turno completo foi o Diurno de Ontem
                 else {
                     const yesterdayMorning = new Date(now); yesterdayMorning.setDate(yesterdayMorning.getDate() - 1); yesterdayMorning.setHours(6, 0, 0, 0);
                     const yesterdayAfternoon = new Date(now); yesterdayAfternoon.setDate(yesterdayAfternoon.getDate() - 1); yesterdayAfternoon.setHours(17, 59, 59, 999);
@@ -570,34 +675,27 @@
 
                 if (!targetShiftStart) return;
 
-                // Verificar cada local obrigatório
                 for (const loc of ROUND_LOCATIONS) {
-                    // Verifica se já existe inspeção REALIZADA neste período
                     const hasInspection = currentDb.some(item => {
                         if (item.type !== 'RONDA' || item.deleted || item.sector !== loc) return false;
                         const itemDate = new Date(item.created_at);
                         return itemDate >= targetShiftStart && itemDate <= targetShiftEnd;
                     });
 
-                    // Verifica se já existe um registro automático de falha para este turno/local
-                    // O ID do documento será: AUTO_SHIFTID_LOCAL (ex: AUTO_DIURNO_2026-01-15_GERADORES)
                     const autoDocId = `AUTO_${shiftNameID}_${loc.replace(/\s+/g, '')}`;
-                    
-                    // Verificação local rápida antes de tentar ler do banco (otimização)
                     const alreadyAutoRegistered = currentDb.some(item => item.id === autoDocId);
 
                     if (!hasInspection && !alreadyAutoRegistered) {
-                        console.log(`Gerando falta automática para: ${loc} no turno ${shiftNameID}`);
                         try {
                             await setDoc(doc(dbFirestore, "inspections", autoDocId), {
                                 type: 'RONDA',
                                 sector: loc,
                                 equipmentName: 'AUDITORIA AUTOMÁTICA',
                                 status: 'NÃO REALIZADA',
-                                auto: true, // Flag importante para bloquear exclusão
+                                auto: true, 
                                 obs: 'Inspeção não realizada dentro do horário estipulado.',
                                 responsible: 'SISTEMA',
-                                created_at: targetShiftEnd.toISOString(), // Registra no final do turno perdido
+                                created_at: targetShiftEnd.toISOString(), 
                                 deleted: false
                             });
                         } catch (e) {
@@ -609,41 +707,92 @@
 
             useEffect(() => {
                 if(!dbFirestore) return;
+
+                // Monitorar Inspeções
                 const q = query(collection(dbFirestore, "inspections"), orderBy("created_at", "desc"));
                 const unsubscribeInspections = onSnapshot(q, (querySnapshot) => { 
                     const inspections = []; 
                     querySnapshot.forEach((doc) => { inspections.push({ id: doc.id, ...doc.data() }); }); 
                     setDb(inspections); 
-                    
-                    // Executa a auditoria sempre que os dados mudam (para garantir consistência)
-                    // Debounce simples poderia ser aplicado, mas para este escopo é ok
                     checkAndGenerateMissedRounds(inspections);
                 }, (error) => { console.error("Erro ao buscar dados:", error); });
                 
+                // Monitorar Usuários (Migração de Dados: Unidade Padrão)
                 const usersCollection = collection(dbFirestore, "users");
                 const qUsers = query(usersCollection, orderBy("name"));
-                const unsubscribeUsers = onSnapshot(qUsers, async (snapshot) => { const usersList = []; snapshot.forEach(doc => usersList.push({ id: doc.id, ...doc.data() })); setUsers(usersList); });
-                return () => { unsubscribeInspections(); unsubscribeUsers(); };
+                const unsubscribeUsers = onSnapshot(qUsers, async (snapshot) => { 
+                    const usersList = []; 
+                    snapshot.forEach(doc => usersList.push({ id: doc.id, ...doc.data() })); 
+                    setUsers(usersList); 
+
+                    // Migração automática de usuários sem unidade para "PARQUE LOGISTICO AERO I"
+                    usersList.forEach(async (u) => {
+                        if (!u.unit) {
+                            try {
+                                const userRef = doc(dbFirestore, "users", u.id);
+                                await updateDoc(userRef, { unit: "PARQUE LOGISTICO AERO I" });
+                            } catch(e) { console.error("Erro migração user", e); }
+                        }
+                    });
+                });
+
+                // Monitorar Unidades (com migração automática se vazio para "PARQUE LOGISTICO AERO I")
+                const unitsCollection = collection(dbFirestore, "units");
+                const qUnits = query(unitsCollection, orderBy("name"));
+                const unsubscribeUnits = onSnapshot(qUnits, async (snapshot) => {
+                    const unitsList = [];
+                    snapshot.forEach(doc => unitsList.push({ id: doc.id, ...doc.data() }));
+                    
+                    if (unitsList.length === 0) {
+                        console.log("Nenhuma unidade encontrada. Criando padrão...");
+                        await addDoc(unitsCollection, { name: "PARQUE LOGISTICO AERO I", address: "RODOVIA HELIO SMIDT" });
+                    } else {
+                        setUnits(unitsList);
+                    }
+                });
+
+                return () => { unsubscribeInspections(); unsubscribeUsers(); unsubscribeUnits(); };
             }, []);
 
             const handleStartInspection = (type) => { setInspectionType(type); setPage('scan'); };
             const handleRoundStart = (location) => { setRoundLocation(location); setInspectionType('RONDA'); setPage('scan'); };
-            const handleSave = async (formData) => { if(!dbFirestore) { showAlert("Erro: Banco de dados não conectado. Verifique a configuração.", "error"); return; } try { await addDoc(collection(dbFirestore, "inspections"), formData); setPage('list'); } catch (e) { console.error("Erro ao salvar: ", e); showAlert("Erro ao salvar na nuvem. Verifique sua conexão.", "error"); } };
-            const handleSaveUser = async (userData) => { if(!dbFirestore) return; try { await addDoc(collection(dbFirestore, "users"), userData); } catch(e) { console.error("Erro ao salvar usuário", e); showAlert("Erro ao salvar usuário.", "error"); } };
-            const handleUpdateUser = async (id, newPass) => { if(!dbFirestore) return; try { await updateDoc(doc(dbFirestore, "users", id), { pass: newPass }); showAlert("Senha atualizada com sucesso!", "success"); } catch(e) { console.error("Erro ao atualizar usuário", e); showAlert("Erro ao atualizar senha.", "error"); } };
-            const handleDeleteUser = async (id) => { if(!dbFirestore) return; try { await deleteDoc(doc(dbFirestore, "users", id)); showAlert("Usuário excluído com sucesso!", "success"); } catch(e) { console.error("Erro ao excluir usuário", e); showAlert("Erro ao excluir usuário.", "error"); } };
-            const handleImportData = async (jsonData) => { if(!dbFirestore) return showAlert("Erro de conexão com o banco de dados.", "error"); if(!Array.isArray(jsonData)) return showAlert("Arquivo inválido. O formato deve ser uma lista JSON.", "error"); showConfirm(`⚠️ ATENÇÃO: Você está prestes a importar ${jsonData.length} registros.\nDeseja continuar?`, async () => { let successCount = 0; let errorCount = 0; for (const item of jsonData) { try { if (item.id) { const { id, ...dataToSave } = item; const docRef = doc(dbFirestore, "inspections", id); await setDoc(docRef, dataToSave); } else { await addDoc(collection(dbFirestore, "inspections"), item); } successCount++; } catch (e) { console.error("Erro ao importar item:", item, e); errorCount++; } } showAlert(`Importação concluída!\n✅ Sucesso: ${successCount}\n❌ Erros: ${errorCount}`, "success"); }, "warning"); };
-            const handleToggleDelete = async (id, status) => { if(!dbFirestore) return; try { const docRef = doc(dbFirestore, "inspections", id); await updateDoc(docRef, { deleted: status }); } catch (e) { console.error("Erro ao atualizar: ", e); showAlert("Erro ao atualizar registro.", "error"); } };
-            const handleDeletePermanently = async (id) => { if(!dbFirestore) return; try { await deleteDoc(doc(dbFirestore, "inspections", id)); } catch (e) { console.error("Erro ao excluir permanentemente: ", e); showAlert("Erro ao excluir do banco de dados.", "error"); } };
-            const handleLogin = (name) => { localStorage.setItem('trfire_user', name); setResponsible(name); setPage('menu'); };
+            
+            const handleSave = async (formData) => { 
+                if(!dbFirestore) { showAlert("Erro: Banco de dados não conectado.", "error"); return; } 
+                try { await addDoc(collection(dbFirestore, "inspections"), { ...formData, unit: currentUnit }); setPage('list'); } 
+                catch (e) { showAlert("Erro ao salvar na nuvem.", "error"); } 
+            };
+
+            // CRUD Usuários
+            const handleSaveUser = async (userData) => { if(!dbFirestore) return; try { await addDoc(collection(dbFirestore, "users"), userData); } catch(e) { showAlert("Erro ao salvar usuário.", "error"); } };
+            const handleUpdateUser = async (id, newPass) => { if(!dbFirestore) return; try { await updateDoc(doc(dbFirestore, "users", id), { pass: newPass }); showAlert("Senha atualizada!", "success"); } catch(e) { showAlert("Erro ao atualizar senha.", "error"); } };
+            const handleDeleteUser = async (id) => { if(!dbFirestore) return; try { await deleteDoc(doc(dbFirestore, "users", id)); showAlert("Usuário excluído!", "success"); } catch(e) { showAlert("Erro ao excluir usuário.", "error"); } };
+
+            // CRUD Unidades
+            const handleSaveUnit = async (unitData) => { if(!dbFirestore) return; try { await addDoc(collection(dbFirestore, "units"), unitData); } catch(e) { showAlert("Erro ao salvar unidade.", "error"); } };
+            const handleUpdateUnit = async (id, data) => { if(!dbFirestore) return; try { await updateDoc(doc(dbFirestore, "units", id), data); showAlert("Unidade atualizada!", "success"); } catch(e) { showAlert("Erro ao atualizar unidade.", "error"); } };
+            const handleDeleteUnit = async (id) => { if(!dbFirestore) return; try { await deleteDoc(doc(dbFirestore, "units", id)); showAlert("Unidade excluída!", "success"); } catch(e) { showAlert("Erro ao excluir unidade.", "error"); } };
+
+            const handleImportData = async (jsonData) => { if(!dbFirestore) return showAlert("Erro BD.", "error"); if(!Array.isArray(jsonData)) return showAlert("JSON Inválido.", "error"); showConfirm(`Importar ${jsonData.length} registros?`, async () => { let c=0; for (const i of jsonData) { try { if (i.id) await setDoc(doc(dbFirestore, "inspections", i.id), i); else await addDoc(collection(dbFirestore, "inspections"), i); c++; } catch(e){} } showAlert(`Sucesso: ${c}`, "success"); }, "warning"); };
+            const handleToggleDelete = async (id, status) => { if(!dbFirestore) return; try { const docRef = doc(dbFirestore, "inspections", id); await updateDoc(docRef, { deleted: status }); } catch (e) { showAlert("Erro ao atualizar.", "error"); } };
+            const handleDeletePermanently = async (id) => { if(!dbFirestore) return; try { await deleteDoc(doc(dbFirestore, "inspections", id)); } catch (e) { showAlert("Erro ao excluir.", "error"); } };
+            
+            const handleLogin = (name, unitName) => { 
+                localStorage.setItem('trfire_user', name); 
+                localStorage.setItem('trfire_unit', unitName);
+                setResponsible(name); 
+                setCurrentUnit(unitName);
+                setPage('menu'); 
+            };
 
             return (
                 <>
                     <NotificationModal isOpen={notification.isOpen} message={notification.message} type={notification.type} isConfirmation={notification.isConfirmation} onClose={closeNotification} onConfirm={notification.onConfirm} />
-                    {page === 'responsible' && <ResponsibleScreen onConfirm={handleLogin} usersList={users} showAlert={showAlert} />}
-                    {page === 'menu' && <MenuScreen onNavigate={setPage} responsibleName={responsible} onStartInspection={handleStartInspection} />}
+                    {page === 'responsible' && <ResponsibleScreen onConfirm={handleLogin} usersList={users} unitsList={units} showAlert={showAlert} />}
+                    {page === 'menu' && <MenuScreen onNavigate={setPage} responsibleName={responsible} currentUnit={currentUnit} onStartInspection={handleStartInspection} />}
                     {page === 'roundsLocation' && <RoundsLocationScreen onNavigate={setPage} onSelectLocation={handleRoundStart} db={db} />}
-                    {page === 'userRegister' && <UserRegisterScreen onNavigate={setPage} onSaveUser={handleSaveUser} usersList={users} onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} showAlert={showAlert} showConfirm={showConfirm} />}
+                    {page === 'userRegister' && <UserRegisterScreen onNavigate={setPage} onSaveUser={handleSaveUser} usersList={users} unitsList={units} onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} showAlert={showAlert} showConfirm={showConfirm} />}
+                    {page === 'unitRegister' && <UnitRegisterScreen onNavigate={setPage} onSaveUnit={handleSaveUnit} unitsList={units} onUpdateUnit={handleUpdateUnit} onDeleteUnit={handleDeleteUnit} showAlert={showAlert} showConfirm={showConfirm} />}
                     {page === 'scan' && <ScannerScreen onNavigate={(target) => setPage(target === 'menu' && inspectionType === 'RONDA' ? 'roundsLocation' : target)} onScanSuccess={(d)=>{setScanRes(d); setPage(inspectionType === 'RONDA' ? 'roundsForm' : 'form')}} db={db} inspectionType={inspectionType} showAlert={showAlert} />}
                     {page === 'form' && <FormScreen initialData={scanRes} onNavigate={setPage} responsibleName={responsible} inspectionType={inspectionType} onSave={handleSave} showAlert={showAlert} />}
                     {page === 'roundsForm' && <RoundsFormScreen initialData={scanRes} onNavigate={setPage} responsibleName={responsible} roundLocation={roundLocation} onSave={handleSave} showAlert={showAlert} />}
